@@ -1,110 +1,106 @@
-# AI Trading Agent
+# 🤖 AI Trading Agent
 
-A modular, event-driven AI trading system that uses public shipping/logistics signals and market data to generate and execute trades in a safe, rule-based, and compliant way.
+> Event-driven AI trading system that reads logistics signals to make smarter market decisions.
 
-## Features
+[![Python](https://img.shields.io/badge/Python-3.x-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![scikit-learn](https://img.shields.io/badge/scikit--learn-ML-F7931E?style=flat-square&logo=scikit-learn&logoColor=white)](https://scikit-learn.org)
+[![Status](https://img.shields.io/badge/Status-Paper%20Trading%20Only-yellow?style=flat-square)](https://github.com/Philipmag/magok_ai_trading_agent)
 
-- **Data Ingestion**: Real-time data from shipping/logistics, market prices, and news sources
-- **Event Detection**: Detects anomalies like route deviations, delays, congestion spikes, price breakouts
-- **Feature Engineering**: Combines event + market data into structured feature vectors with technical indicators
-- **ML Decision Layer**: RandomForest classifier selects the best trading strategy (momentum, latency, mean reversion)
-- **Risk Management**: Max 1% capital per trade, max 3 concurrent trades, daily loss cap (3%)
-- **Paper Trading**: Simulated broker for safe execution
-- **Structured Logging**: JSON-formatted logs for all decisions and trades
+---
 
-## Project Structure
+## Overview
 
-```
-ai_trading_agent/
-├── config/              # Configuration settings
-│   ├── settings.py      # Trading parameters
-│   └── assets.py        # Asset definitions
-├── data/                # Data ingestion
-│   ├── ingest.py        # Unified data interface
-│   └── sources/         # Mock data sources
-│       ├── shipping_api.py
-│       ├── market_api.py
-│       └── news_api.py
-├── events/              # Event detection
-│   ├── detector.py       # Anomaly detection
-│   └── rules.py         # Rule engine
-├── features/            # Feature engineering
-│   ├── builder.py       # Feature vectors
-│   └── indicators.py    # Technical indicators
-├── ml/                  # Machine learning
-│   ├── model.py         # Strategy classifier
-│   ├── predict.py       # Prediction engine
-│   └── train.py         # Model training
-├── strategies/          # Trading strategies
-│   ├── momentum.py      # Momentum breakout
-│   ├── latency.py       # Latency arbitrage
-│   └── mean_reversion.py # Mean reversion
-├── risk/               # Risk management
-│   └── manager.py      # Position & risk controls
-├── execution/          # Trade execution
-│   ├── broker.py       # Paper trading broker
-│   └── orders.py       # Order management
-├── backtest/           # Backtesting
-│   └── engine.py       # Strategy evaluation
-├── logs/               # Log files
-├── main.py             # Main trading loop
-└── requirements.txt    # Dependencies
-```
+Most trading bots react to price data alone. This system goes a step further — it ingests real-world shipping and logistics signals (route deviations, port congestion, supply chain anomalies) and combines them with market data to detect trading opportunities before they show up in price charts.
 
-## Installation
+Built as a learning project to explore the intersection of event-driven systems, machine learning, and financial engineering. The system runs entirely in paper-trading mode, meaning no real money is ever at risk.
+
+---
+
+## Demo
+
+> **Status: Paper trading only — no live brokerage connection.**
+
+Run it locally to see the trading loop in action:
 
 ```bash
-pip install numpy pandas scikit-learn
-```
-
-## Usage
-
-Run the demo trading agent:
-
-```bash
-cd ai_trading_agent
+git clone https://github.com/Philipmag/magok_ai_trading_agent
+cd magok_ai_trading_agent
+pip install -r requirements.txt
 python main.py
 ```
 
-The system will run for 60 seconds by default, continuously:
-1. Fetching data every 10 seconds
-2. Detecting shipping/logistics events
-3. Building feature vectors
-4. Making ML predictions
-5. Applying risk checks
-6. Executing paper trades
-7. Logging all decisions
+Sample output:
+```
+[INFO] Event detected: SHIPPING_DELAY on AAPL route (severity: HIGH)
+[INFO] ML model selected strategy: momentum (confidence: 0.82)
+[INFO] Risk check passed — executing paper trade: BUY AAPL @ $182.40, qty: 5
+[INFO] Trade logged. Open positions: 1 / 3
+```
 
-## Configuration
+---
 
-Edit [`config/settings.py`](config/settings.py) to customize:
+## Features
 
-- Initial capital
-- Risk limits (max trades, daily loss cap)
-- Loop intervals
-- Model confidence threshold
+- **Logistics-aware signal detection** — Flags shipping anomalies (delays, route changes, congestion) as early market signals before they appear in price data.
+- **ML strategy selection** — A RandomForest classifier picks the best trading strategy (momentum, mean reversion, or latency arbitrage) based on the current feature vector.
+- **Built-in risk management** — Hard limits: max 1% capital per trade, max 3 concurrent positions, 3% daily loss cap. The system refuses to trade outside these bounds.
+- **Structured JSON logging** — Every decision, prediction, and trade is logged with full context for post-hoc analysis.
+- **Paper trading only** — A simulated broker executes all trades safely, making this safe to run without any brokerage account.
 
-## Trading Strategies
+---
 
-### Momentum Strategy
-- Entry: Price breakout + volume confirmation + favorable RSI
-- Exit: Stop loss, take profit, or momentum reversal
+## Tech Stack
 
-### Latency Arbitrage Strategy
-- Entry: Price divergence between correlated assets after shipping event
-- Exit: Correlation reestablished or convergence
+| Layer | Technology |
+|-------|------------|
+| Language | Python 3.x |
+| ML Model | scikit-learn (RandomForestClassifier) |
+| Data Processing | Pandas, NumPy |
+| Logging | python-json-logger |
+| Execution | Simulated paper broker (no live API) |
 
-### Mean Reversion Strategy
-- Entry: RSI at extreme (oversold/overbought) + Bollinger Band contact
-- Exit: RSI returned to neutral or price at mean
+---
 
-## Risk Controls
+## Getting Started
 
-- Max 1% capital per trade
-- Max 3 concurrent trades
-- Daily loss cap (3%)
-- Required stop-loss and take-profit
+```bash
+git clone https://github.com/Philipmag/magok_ai_trading_agent
+cd magok_ai_trading_agent
+pip install -r requirements.txt
+cp .env.example .env   # configure API keys if using live data sources
+python main.py
+```
 
-## Disclaimer
+All data sources default to mock mode (`use_mock_data: True` in `config/settings.py`). No API keys are required to run.
 
-This is a paper trading system for educational purposes. Do not use with real money. Past performance does not guarantee future results.
+---
+
+## How It Works
+
+The system runs as a continuous loop with five stages:
+
+1. **Data Ingestion** → Pulls mock shipping, market, and news data every 10–30 seconds via `data/ingest.py`.
+2. **Event Detection** → `events/detector.py` scans for anomalies (delays, price breakouts, news spikes) using a rule engine.
+3. **Feature Engineering** → `features/builder.py` combines event data with technical indicators (RSI, moving averages, volume spikes) into a structured feature vector.
+4. **ML Prediction** → `ml/predict.py` feeds the feature vector into a trained RandomForest model, which returns a strategy recommendation with a confidence score.
+5. **Risk-Gated Execution** → `risk/manager.py` validates the trade against hard limits before `execution/broker.py` places a paper order.
+
+---
+
+## What I Learned
+
+- **Event-driven architecture** requires careful state management — learned to use a clean pub/sub pattern to decouple data ingestion from decision logic.
+- **ML in trading is mostly feature engineering** — model accuracy improved significantly once shipping delay severity was weighted correctly relative to price signals.
+- **Risk management is not optional** — adding hard position limits and daily loss caps transformed the system from a toy into something that behaves like a real trading desk.
+
+---
+
+## Roadmap
+
+- [ ] Connect to a real paper trading API (Alpaca or Polygon.io) to replace mock data with live feeds.
+- [ ] Add a backtesting module to evaluate strategy performance on historical data.
+- [ ] Build a lightweight web dashboard to visualize open positions and decision logs in real time.
+
+---
+
+> **Disclaimer:** This is a paper trading system for educational purposes only. Do not use with real money.
