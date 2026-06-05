@@ -243,9 +243,17 @@ class RiskManager:
         return trade_record
     
     def check_position_exits(self, symbol: str, current_price: float, 
-                            stop_loss: float, take_profit: float) -> Optional[str]:
+                            stop_loss: float, take_profit: float,
+                            slippage_bps: float = 5.0) -> Optional[str]:
         """
         Check if position should be exited.
+        
+        Args:
+            symbol: Symbol to check
+            current_price: Current market price
+            stop_loss: Stop loss price level
+            take_profit: Take profit price level
+            slippage_bps: Slippage in basis points (default 5 bps = 0.05%)
         
         Returns exit reason if should exit, None otherwise.
         """
@@ -254,20 +262,26 @@ class RiskManager:
         
         position = self.open_positions[symbol]
         
-        # Update current price
-        position.update(current_price)
+        # Apply slippage to fill price calculation
+        slippage_factor = slippage_bps / 10000.0  # Convert bps to decimal
         
-        # Check stop loss
-        if position.direction == "long" and current_price <= position.stop_loss:
-            return "stop_loss"
-        elif position.direction == "short" and current_price >= position.stop_loss:
-            return "stop_loss"
-        
-        # Check take profit
-        if position.direction == "long" and current_price >= position.take_profit:
-            return "take_profit"
-        elif position.direction == "short" and current_price <= position.take_profit:
-            return "take_profit"
+        # For stop loss exits, slippage works against us
+        # For long positions: stop loss filled at lower price
+        # For short positions: stop loss filled at higher price
+        if position.direction == "long":
+            effective_stop = stop_loss * (1 - slippage_factor)
+            effective_target = take_profit * (1 - slippage_factor)  # Take profit also has slippage
+            if current_price <= effective_stop:
+                return "stop_loss"
+            if current_price >= effective_target:
+                return "take_profit"
+        else:  # short
+            effective_stop = stop_loss * (1 + slippage_factor)
+            effective_target = take_profit * (1 + slippage_factor)
+            if current_price >= effective_stop:
+                return "stop_loss"
+            if current_price <= effective_target:
+                return "take_profit"
         
         return None
     

@@ -50,3 +50,12 @@ Starting trading loop (duration: 60s)
 Duration limit reached, stopping
 {"timestamp": "2026-03-26T22:07:24.759421", "type": "risk_metrics", "data": {"capital": 100000.0, "daily_pnl": 0.0, "open_positions": 0, "risk_level": "low"}}
 Trading Agent stopped
+AI Trading Agent initialized
+AI Trading Agent initialized
+{"timestamp": "2026-06-05T14:04:17.603301", "type": "data_ingestion", "data": {"market_sentiment": 0.529, "shipping_index": 1508.91, "active_events": 2}}
+{"timestamp": "2026-06-05T14:04:17.822622", "type": "trading_decision", "data": {"symbol": "FDX", "strategy": "no_trade", "direction": "neutral", "confidence": 0.6374126984126984, "should_trade": false, "reasons": ["Model confident in no_trade strategy"]}}
+{"timestamp": "2026-06-05T14:04:17.822833", "type": "trading_decision", "data": {"symbol": "UPS", "strategy": "no_trade", "direction": "neutral", "confidence": 0.6403888888888889, "should_trade": false, "reasons": ["Model confident in no_trade strategy"]}}
+{"timestamp": "2026-06-05T14:04:17.823000", "type": "trading_decision", "data": {"symbol": "CHRW", "strategy": "no_trade", "direction": "neutral", "confidence": 0.6474126984126984, "should_trade": false, "reasons": ["Model confident in no_trade strategy"]}}
+{"timestamp": "2026-06-05T14:04:17.823095", "type": "trading_decision", "data": {"symbol": "DAL", "strategy": "no_trade", "direction": "neutral", "confidence": 0.5778888888888889, "should_trade": false, "reasons": ["Model confident in no_trade strategy"]}}
+{"timestamp": "2026-06-05T14:04:17.823144", "type": "trading_decision", "data": {"symbol": "IYT", "strategy": "no_trade", "direction": "neutral", "confidence": 0.5845555555555556, "should_trade": false, "reasons": ["Model confident in no_trade strategy"]}}
+{"timestamp": "2026-06-05T14:04:17.823228", "type": "risk_metrics", "data": {"capital": 100000.0, "daily_pnl": 0.0, "open_positions": 0, "risk_level": "low"}}

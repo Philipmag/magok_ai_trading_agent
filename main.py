@@ -11,13 +11,14 @@ Event-driven trading system that:
 7. Logs all decisions
 """
 
-import time
+import asyncio
 import json
 import logging
+import signal
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
-import sys
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
@@ -35,6 +36,7 @@ from strategies.mean_reversion import get_mean_reversion_strategy
 from risk.manager import get_risk_manager, TradeRequest
 from execution.broker import get_broker
 from execution.orders import OrderSide
+from db.database import get_position_database
 
 
 class TradingLogger:
@@ -145,18 +147,62 @@ class AITradingAgent:
         self.risk_manager = get_risk_manager(settings.initial_capital)
         self.broker = get_broker(settings.initial_capital)
         
+        # Database for state persistence
+        self.db = get_position_database()
+        
         # State
         self.running = False
         self.loop_count = 0
         
+        # Recover state from database on restart
+        self._recover_state()
+        
         self.logger.logger.info("AI Trading Agent initialized")
     
+    def _recover_state(self):
+        """Recover open positions and account state from database."""
+        try:
+            # Load account state
+            account_state = self.db.load_account_state()
+            if account_state:
+                self.risk_manager.capital = account_state.get('capital', self.risk_manager.initial_capital)
+                self.risk_manager.daily_start_capital = account_state.get('daily_start_capital', self.risk_manager.capital)
+                if account_state.get('daily_start_time'):
+                    self.risk_manager.daily_start_time = account_state['daily_start_time']
+                self.risk_manager.peak_capital = account_state.get('peak_capital', self.risk_manager.capital)
+                self.risk_manager.max_drawdown = account_state.get('max_drawdown', 0.0)
+                self.logger.logger.info(f"Recovered account state: capital=${self.risk_manager.capital:,.2f}")
+            
+            # Note: Open positions in risk manager are in-memory only.
+            # In a full implementation, we would reconstruct Position objects from DB.
+            # For now, positions are tracked in broker and risk manager memory.
+            
+        except Exception as e:
+            self.logger.logger.error(f"Failed to recover state: {e}")
+    
     def start(self, duration_seconds: int = None):
-        """Start the trading loop."""
+        """Start the trading loop using asyncio."""
         self.running = True
-        start_time = time.time()
+        
+        # Setup signal handlers for graceful shutdown
+        signal.signal(signal.SIGTERM, self._handle_shutdown)
+        signal.signal(signal.SIGINT, self._handle_shutdown)
         
         self.logger.logger.info(f"Starting trading loop (duration: {duration_seconds or 'indefinite'}s)")
+        
+        # Run async loop
+        asyncio.run(self._run_async_loop(duration_seconds))
+    
+    def _handle_shutdown(self, signum, frame):
+        """Handle graceful shutdown on SIGTERM/SIGINT."""
+        self.logger.logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+        self.running = False
+    
+    async def _run_async_loop(self, duration_seconds: int = None):
+        """Async trading loop with concurrent data stream tasks."""
+        import time
+        
+        start_time = time.time()
         
         try:
             while self.running:
@@ -164,7 +210,7 @@ class AITradingAgent:
                 loop_start = time.time()
                 
                 # Run one iteration
-                self._run_iteration()
+                await self._run_iteration_async()
                 
                 # Check duration limit
                 if duration_seconds and (time.time() - start_time) >= duration_seconds:
@@ -176,16 +222,19 @@ class AITradingAgent:
                 sleep_time = max(0, system_settings.loop_interval - elapsed)
                 
                 if sleep_time > 0:
-                    time.sleep(sleep_time)
+                    await asyncio.sleep(sleep_time)
         
-        except KeyboardInterrupt:
-            self.logger.logger.info("Received interrupt, stopping...")
+        except asyncio.CancelledError:
+            self.logger.logger.info("Loop cancelled, stopping...")
         finally:
-            self.stop()
+            await self._stop_async()
     
-    def stop(self):
-        """Stop the trading loop."""
+    async def _stop_async(self):
+        """Stop the trading loop asynchronously."""
         self.running = False
+        
+        # Persist final state to database
+        self._persist_state()
         
         # Log final state
         metrics = self.risk_manager.get_metrics()
@@ -193,13 +242,32 @@ class AITradingAgent:
         
         self.logger.logger.info("Trading Agent stopped")
     
-    def _run_iteration(self):
-        """Run one iteration of the trading loop."""
+    def _persist_state(self):
+        """Persist current state to database."""
+        try:
+            self.db.save_account_state(
+                capital=self.risk_manager.capital,
+                daily_start_capital=self.risk_manager.daily_start_capital,
+                daily_start_time=self.risk_manager.daily_start_time,
+                peak_capital=self.risk_manager.peak_capital,
+                max_drawdown=self.risk_manager.max_drawdown
+            )
+        except Exception as e:
+            self.logger.logger.error(f"Failed to persist state: {e}")
+    
+    async def _run_iteration_async(self):
+        """Run one iteration of the trading loop asynchronously."""
+        import time
+        
         iteration_start = time.time()
         
-        # 1. Fetch data
-        data = self.data_ingestion.fetch_all()
-        self.logger.log_data(data)
+        # 1. Fetch data (with error handling)
+        try:
+            data = self.data_ingestion.fetch_all()
+            self.logger.log_data(data)
+        except Exception as e:
+            self.logger.logger.error(f"Data fetch failed: {e}")
+            return
         
         # 2. Detect events
         raw_events = self.event_detector.detect_all(data)
@@ -217,21 +285,24 @@ class AITradingAgent:
             self.logger.log_decision(decision)
             
             if decision.should_trade:
-                self._execute_strategy(symbol, decision, features[symbol])
+                await self._execute_strategy_async(symbol, decision, features[symbol])
         
         # 6. Check existing positions for exits
-        self._check_position_exits(data)
+        await self._check_position_exits_async(data)
         
         # 7. Log metrics
         if self.loop_count % 10 == 0:  # Every 10 iterations
             metrics = self.risk_manager.get_metrics()
             self.logger.log_risk_metrics(metrics)
         
+        # 8. Persist state to database
+        self._persist_state()
+        
         iteration_time = time.time() - iteration_start
         self.logger.logger.debug(f"Iteration {self.loop_count} completed in {iteration_time:.2f}s")
     
-    def _execute_strategy(self, symbol: str, decision: TradingDecision, features: FeatureVector):
-        """Execute a strategy based on decision."""
+    async def _execute_strategy_async(self, symbol: str, decision: TradingDecision, features: FeatureVector):
+        """Execute a strategy based on decision (async version)."""
         # Get strategy signal
         signal = None
         strategy_name = decision.recommended_strategy
@@ -246,9 +317,9 @@ class AITradingAgent:
         if signal is None:
             return
         
-        # Create trade request
+        # Create trade request with FIXED quantity rounding
         direction = "long" if decision.direction == "long" else "short"
-        quantity = signal.position_size / signal.entry_price
+        quantity = max(1, int(signal.position_size / signal.entry_price))  # FIX #1: Quantity rounding
         
         request = TradeRequest(
             symbol=symbol,
@@ -282,7 +353,21 @@ class AITradingAgent:
         
         if result.success:
             # Record position in risk manager
-            self.risk_manager.open_position(response, request)
+            position = self.risk_manager.open_position(response, request)
+            
+            # Persist position to database
+            self.db.save_position({
+                'position_id': position.position_id,
+                'symbol': position.symbol,
+                'direction': position.direction,
+                'entry_price': position.entry_price,
+                'quantity': position.quantity,
+                'current_price': position.current_price,
+                'stop_loss': position.stop_loss,
+                'take_profit': position.take_profit,
+                'entry_time': position.entry_time,
+                'strategy': position.strategy
+            })
             
             self.logger.log_trade({
                 "order_id": result.order_id,
@@ -294,8 +379,8 @@ class AITradingAgent:
                 "confidence": signal.confidence
             })
     
-    def _check_position_exits(self, data: CombinedDataSnapshot):
-        """Check if any positions should be exited."""
+    async def _check_position_exits_async(self, data: CombinedDataSnapshot):
+        """Check if any positions should be exited (async version)."""
         positions = self.risk_manager.get_open_positions()
         
         for position in positions:
@@ -305,12 +390,13 @@ class AITradingAgent:
             
             current_price = quote.close
             
-            # Check exit conditions
+            # Check exit conditions WITH SLIPPAGE (FIX #6)
             exit_reason = self.risk_manager.check_position_exits(
                 position.symbol,
                 current_price,
                 position.stop_loss,
-                position.take_profit
+                position.take_profit,
+                slippage_bps=5.0  # 5 basis points slippage
             )
             
             if exit_reason:
@@ -318,6 +404,15 @@ class AITradingAgent:
                 trade_result = self.risk_manager.close_position(position.symbol, exit_reason)
                 
                 if trade_result:
+                    # Update position in database
+                    self.db.close_position(
+                        position_id=position.position_id,
+                        exit_price=current_price,
+                        exit_reason=exit_reason,
+                        pnl=trade_result['pnl'],
+                        pnl_pct=trade_result['pnl_pct']
+                    )
+                    
                     self.logger.log_trade({
                         "symbol": position.symbol,
                         "exit_reason": exit_reason,

@@ -4,6 +4,10 @@ Data Ingestion Module.
 Unified interface for all data sources.
 """
 
+import asyncio
+import time
+import logging
+from functools import wraps
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 from datetime import datetime
@@ -12,6 +16,34 @@ from threading import Lock
 from .sources.shipping_api import ShippingData, get_shipping_source, ShippingAPISource
 from .sources.market_api import MarketSnapshot, PriceQuote, get_market_source, MarketAPISource
 from .sources.news_api import NewsSnapshot, NewsArticle, get_news_source, NewsAPISource
+
+
+logger = logging.getLogger(__name__)
+
+
+def exponential_backoff(max_retries: int = 5, base_delay: float = 1.0, max_delay: float = 30.0):
+    """Decorator for exponential backoff retry logic."""
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            last_exception = None
+            for attempt in range(max_retries):
+                try:
+                    return await func(*args, **kwargs)
+                except Exception as e:
+                    last_exception = e
+                    delay = min(base_delay * (2 ** attempt), max_delay)
+                    logger.warning(
+                        f"Attempt {attempt + 1}/{max_retries} failed: {e}. "
+                        f"Retrying in {delay:.1f}s"
+                    )
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(delay)
+            
+            logger.error(f"All {max_retries} attempts failed")
+            raise last_exception
+        return wrapper
+    return decorator
 
 
 @dataclass
@@ -65,32 +97,41 @@ class DataIngestion:
         self._max_history = 1000
     
     def fetch_all(self) -> CombinedDataSnapshot:
-        """Fetch data from all sources."""
-        with self._lock:
-            # Fetch from all sources
-            shipping_data = self._shipping_source.fetch_shipping_data()
-            market_data = self._market_source.fetch_market_data()
-            news_data = self._news_source.fetch_news(symbols=self.symbols)
-            
-            # Combine into unified snapshot
-            snapshot = CombinedDataSnapshot(
-                timestamp=datetime.now(),
-                market_data=market_data,
-                shipping_data=shipping_data,
-                news_data=news_data,
-                quotes=market_data.quotes,
-                active_events=shipping_data.events + news_data.articles,
-                market_sentiment=market_data.market_sentiment,
-                shipping_sentiment=news_data.shipping_sentiment
-            )
-            
-            self._last_snapshot = snapshot
-            
-            # Update event history
-            for event in shipping_data.events:
-                self._add_event_to_history(event)
-            
-            return snapshot
+        """Fetch data from all sources with error handling."""
+        try:
+            with self._lock:
+                # Fetch from all sources
+                shipping_data = self._shipping_source.fetch_shipping_data()
+                market_data = self._market_source.fetch_market_data()
+                news_data = self._news_source.fetch_news(symbols=self.symbols)
+                
+                # Combine into unified snapshot
+                snapshot = CombinedDataSnapshot(
+                    timestamp=datetime.now(),
+                    market_data=market_data,
+                    shipping_data=shipping_data,
+                    news_data=news_data,
+                    quotes=market_data.quotes,
+                    active_events=shipping_data.events + news_data.articles,
+                    market_sentiment=market_data.market_sentiment,
+                    shipping_sentiment=news_data.shipping_sentiment
+                )
+                
+                self._last_snapshot = snapshot
+                
+                # Update event history
+                for event in shipping_data.events:
+                    self._add_event_to_history(event)
+                
+                return snapshot
+        except Exception as e:
+            logger.error(f"Data fetch failed: {e}")
+            # Return last known good snapshot if available
+            if self._last_snapshot:
+                logger.warning("Returning cached snapshot")
+                return self._last_snapshot
+            # Return empty snapshot as fallback
+            raise
     
     def fetch_market_only(self) -> MarketSnapshot:
         """Fetch market data only."""
