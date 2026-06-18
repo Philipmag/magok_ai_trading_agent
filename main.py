@@ -30,10 +30,11 @@ from events.detector import get_event_detector, DetectedEvent
 from events.rules import get_rule_engine
 from features.builder import get_feature_builder, FeatureVector
 from ml.predict import get_prediction_engine, TradingDecision
+from ml.trainer import get_model_trainer, ModelTrainer
 from strategies.momentum import get_momentum_strategy
 from strategies.latency import get_latency_strategy
 from strategies.mean_reversion import get_mean_reversion_strategy
-from risk.manager import get_risk_manager, TradeRequest
+from risk.manager import get_risk_manager, TradeRequest, Position
 from execution.broker import get_broker
 from execution.orders import OrderSide
 from db.database import get_position_database
@@ -138,6 +139,9 @@ class AITradingAgent:
         self.feature_builder = get_feature_builder(self.symbols)
         self.prediction_engine = get_prediction_engine(settings.model_confidence_threshold)
         
+        # ML Trainer for weekly retraining
+        self.ml_trainer = get_model_trainer(lookback_days=90)
+        
         # Strategies
         self.momentum_strategy = get_momentum_strategy()
         self.latency_strategy = get_latency_strategy()
@@ -153,6 +157,7 @@ class AITradingAgent:
         # State
         self.running = False
         self.loop_count = 0
+        self.last_train_time = datetime.now()  # Track last training time
         
         # Recover state from database on restart
         self._recover_state()
@@ -173,9 +178,25 @@ class AITradingAgent:
                 self.risk_manager.max_drawdown = account_state.get('max_drawdown', 0.0)
                 self.logger.logger.info(f"Recovered account state: capital=${self.risk_manager.capital:,.2f}")
             
-            # Note: Open positions in risk manager are in-memory only.
-            # In a full implementation, we would reconstruct Position objects from DB.
-            # For now, positions are tracked in broker and risk manager memory.
+            # Recover open positions from database
+            open_positions = self.db.get_open_positions()
+            for pos_dict in open_positions:
+                # Reconstruct Position object
+                position = Position(
+                    position_id=pos_dict['position_id'],
+                    symbol=pos_dict['symbol'],
+                    direction=pos_dict['direction'],
+                    entry_price=pos_dict['entry_price'],
+                    quantity=pos_dict['quantity'],
+                    current_price=pos_dict.get('current_price', pos_dict['entry_price']),
+                    stop_loss=pos_dict['stop_loss'],
+                    take_profit=pos_dict['take_profit'],
+                    entry_time=pos_dict['entry_time'] if isinstance(pos_dict['entry_time'], datetime) else datetime.fromisoformat(pos_dict['entry_time']),
+                    strategy=pos_dict['strategy']
+                )
+                # Add to risk manager's open positions
+                self.risk_manager.open_positions[pos_dict['symbol']] = position
+                self.logger.logger.info(f"Recovered position: {pos_dict['symbol']} ({pos_dict['direction']})")
             
         except Exception as e:
             self.logger.logger.error(f"Failed to recover state: {e}")
@@ -255,18 +276,35 @@ class AITradingAgent:
         except Exception as e:
             self.logger.logger.error(f"Failed to persist state: {e}")
     
+    def _check_and_retrain_model(self):
+        """Check if weekly retraining is due and run training cycle."""
+        from datetime import timedelta
+        
+        # Check if 7 days have passed since last training
+        if datetime.now() - self.last_train_time >= timedelta(days=7):
+            self.logger.logger.info("Starting weekly model retraining...")
+            model_path = self.ml_trainer.run_training_cycle(self.db)
+            if model_path:
+                self.last_train_time = datetime.now()
+                self.logger.logger.info(f"Model retrained successfully: {model_path}")
+                
+                # Reload prediction engine with new model
+                self.prediction_engine.load_model(model_path)
+            else:
+                self.logger.logger.warning("Model retraining failed or skipped (insufficient data)")
+    
     async def _run_iteration_async(self):
         """Run one iteration of the trading loop asynchronously."""
         import time
         
         iteration_start = time.time()
         
-        # 1. Fetch data (with error handling)
+        # 1. Fetch data (with error handling and exponential backoff)
         try:
-            data = self.data_ingestion.fetch_all()
+            data = await self.data_ingestion.fetch_all()
             self.logger.log_data(data)
         except Exception as e:
-            self.logger.logger.error(f"Data fetch failed: {e}")
+            self.logger.logger.error(f"Data fetch failed after retries: {e}")
             return
         
         # 2. Detect events

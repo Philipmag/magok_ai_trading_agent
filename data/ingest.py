@@ -96,14 +96,14 @@ class DataIngestion:
         self._event_history: List = []
         self._max_history = 1000
     
-    def fetch_all(self) -> CombinedDataSnapshot:
-        """Fetch data from all sources with error handling."""
+    async def fetch_all(self) -> CombinedDataSnapshot:
+        """Fetch data from all sources with exponential backoff error handling."""
         try:
             with self._lock:
-                # Fetch from all sources
-                shipping_data = self._shipping_source.fetch_shipping_data()
-                market_data = self._market_source.fetch_market_data()
-                news_data = self._news_source.fetch_news(symbols=self.symbols)
+                # Fetch from all sources concurrently
+                shipping_data = await self._async_fetch_shipping()
+                market_data = await self._async_fetch_market()
+                news_data = await self._async_fetch_news()
                 
                 # Combine into unified snapshot
                 snapshot = CombinedDataSnapshot(
@@ -125,13 +125,28 @@ class DataIngestion:
                 
                 return snapshot
         except Exception as e:
-            logger.error(f"Data fetch failed: {e}")
+            logger.error(f"Data fetch failed after retries: {e}")
             # Return last known good snapshot if available
             if self._last_snapshot:
                 logger.warning("Returning cached snapshot")
                 return self._last_snapshot
             # Return empty snapshot as fallback
             raise
+    
+    @exponential_backoff(max_retries=5, base_delay=1.0, max_delay=30.0)
+    async def _async_fetch_shipping(self) -> ShippingData:
+        """Async wrapper for shipping data fetch with exponential backoff."""
+        return self._shipping_source.fetch_shipping_data()
+    
+    @exponential_backoff(max_retries=5, base_delay=1.0, max_delay=30.0)
+    async def _async_fetch_market(self) -> MarketSnapshot:
+        """Async wrapper for market data fetch with exponential backoff."""
+        return self._market_source.fetch_market_data()
+    
+    @exponential_backoff(max_retries=5, base_delay=1.0, max_delay=30.0)
+    async def _async_fetch_news(self) -> NewsSnapshot:
+        """Async wrapper for news data fetch with exponential backoff."""
+        return self._news_source.fetch_news(symbols=self.symbols)
     
     def fetch_market_only(self) -> MarketSnapshot:
         """Fetch market data only."""
