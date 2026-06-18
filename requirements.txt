@@ -15,11 +15,11 @@ websockets==11.0.3
 sqlite3 (built-in)
 
 # ML - Advanced models (Phase 2+)
-# xgboost==1.7.6
-# tensorflow==2.13.0  # For LSTM
-# transformers==4.31.0  # For FinBERT
-# shap==0.42.1  # For model explainability
-# optuna==3.2.0  # For hyperparameter tuning
+xgboost==2.0.0
+torch==2.0.1
+transformers==4.31.0  # For FinBERT
+shap==0.42.1  # For model explainability
+optuna==3.2.0  # For hyperparameter tuning
 
 # Broker APIs (Phase 3+)
 # alpaca-trade-api==3.0.2
