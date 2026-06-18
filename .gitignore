@@ -1,10 +1,31 @@
 ```
-# Database files
-*.db
-
-# Logs
-*.log
-
-# Environment files
+# Environment variables
 .env.local
+.env.*
+
+# Dependencies
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+.env
+.venv.bak
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+*.tmp
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
 ```

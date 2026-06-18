@@ -1,0 +1,17 @@
+{
+    "Port of Los Angeles": ["FDX", "UPS", "DAL"],
+    "Port of Long Beach": ["FDX", "UPS", "DAL"],
+    "Port of Shanghai": ["FDX", "UPS", "CHRW"],
+    "Port of Rotterdam": ["FDX", "UPS", "CHRW"],
+    "Port of Singapore": ["FDX", "UPS", "DAL"],
+    "Suez Canal": ["FDX", "UPS", "DAL", "CHRW"],
+    "Panama Canal": ["FDX", "UPS", "DAL"],
+    "Port of Hamburg": ["FDX", "UPS"],
+    "Port of Busan": ["FDX", "UPS", "CHRW"],
+    "Port of Dubai": ["FDX", "UPS", "DAL"],
+    "Port of New York": ["FDX", "UPS", "DAL"],
+    "Port of Tokyo": ["FDX", "UPS", "CHRW"],
+    "Port of Hong Kong": ["FDX", "UPS", "CHRW"],
+    "Port of Shenzhen": ["FDX", "UPS", "CHRW"],
+    "Port of Ningbo": ["FDX", "UPS", "CHRW"]
+}
