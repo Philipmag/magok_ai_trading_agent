@@ -1,10 +1,18 @@
-```
-# Database files
-*.db
-
-# Logs
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+env/
+venv/
+.venv/
+.env
 *.log
-
-# Environment files
-.env.local
-```
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+dist/
+build/
+*.egg-info/
+.DS_Store
+data/cache/
+models/*.pkl

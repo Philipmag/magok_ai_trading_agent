@@ -15,30 +15,31 @@ websockets==11.0.3
 sqlite3 (built-in)
 
 # ML - Advanced models (Phase 2+)
-# xgboost==1.7.6
-# tensorflow==2.13.0  # For LSTM
-# transformers==4.31.0  # For FinBERT
-# shap==0.42.1  # For model explainability
-# optuna==3.2.0  # For hyperparameter tuning
+xgboost==2.0.0
+torch==2.0.1
+transformers==4.31.0  # For FinBERT
+shap==0.42.1  # For model explainability
+optuna==3.2.0  # For hyperparameter tuning
 
 # Broker APIs (Phase 3+)
-# alpaca-trade-api==3.0.2
-# polygon-api-client==1.12.0
-# ib_insync==0.9.86
+alpaca-trade-api==3.0.2
+polygon-api-client==1.12.0
+ib_insync==0.9.86
 
 # Data sources (Phase 3+)
-# newsapi-python==0.2.7
+newsapi-python==0.2.7
+feedparser==6.0.10  # For SEC EDGAR RSS
 
 # Backtesting (Phase 4+)
-# vectorbt==0.24.0
+vectorbt==0.24.0
 
 # Risk & Portfolio (Phase 5+)
-# yfinance==0.2.28
+yfinance==0.2.28
 
 # API & Dashboard (Phase 7+)
-# fastapi==0.100.1
-# uvicorn==0.23.2
-# prometheus-client==0.17.1
+fastapi==0.100.1
+uvicorn==0.23.2
+prometheus-client==0.17.1
 
 # Testing
 pytest==7.4.0
@@ -55,3 +56,4 @@ python-json-logger==2.0.7
 
 # Environment variables
 python-dotenv==1.0.0
+
