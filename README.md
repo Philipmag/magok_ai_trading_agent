@@ -1,5 +1,7 @@
 # 🤖 AI Trading Agent
 
+[![CI](https://github.com/Philipmag/magok_ai_trading_agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Philipmag/magok_ai_trading_agent/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 > Event-driven AI trading system that reads logistics signals to make smarter market decisions.
 
 [![Python](https://img.shields.io/badge/Python-3.x-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
