@@ -12,7 +12,7 @@ aiohttp==3.8.5
 websockets==11.0.3
 
 # Database
-sqlite3 (built-in)
+# sqlite3 — part of the Python standard library, no install required
 
 # ML - Advanced models (Phase 2+)
 xgboost==2.0.0
